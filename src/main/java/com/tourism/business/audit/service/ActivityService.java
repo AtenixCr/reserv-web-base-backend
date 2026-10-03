@@ -1,0 +1,23 @@
+package com.tourism.business.audit.service;
+import com.tourism.business.common.ApiException;
+import java.time.*;
+import java.util.*;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.*;
+@Service
+public class ActivityService {
+    private final JdbcTemplate jdbc;
+    public ActivityService(JdbcTemplate jdbc){this.jdbc=jdbc;}
+    private static final String ROWS="WITH entries AS (SELECT CONCAT('A-',id) id,COALESCE(LOWER(CONVERT(varchar(36),requestId)),CONCAT('A-',id)) groupKey,occurredAt,actorId,entity,entityId,operation type,operation outcome,origin,'DML' source FROM dbo.AuditLog UNION ALL SELECT CONCAT('E-',id),COALESCE(LOWER(CONVERT(varchar(36),requestId)),CONCAT('E-',id)),occurredAt,actorId,entity,entityId,eventType,outcome,CASE WHEN requestId IS NULL THEN 'EXTERNAL' ELSE 'APPLICATION' END,'EVENT' FROM dbo.ActivityEvent) ";
+    private void page(int page,int size){if(page<0||size<1||size>100)throw new ApiException(400,"INVALID_INPUT");}
+    private Map<String,Object> json(Map<String,Object> row){var result=new LinkedHashMap<String,Object>();row.forEach((k,v)->result.put(k,v instanceof java.sql.Timestamp t?t.toLocalDateTime().toInstant(ZoneOffset.UTC).toString():v!=null&&(k.endsWith("Id"))?v.toString():v));return result;}
+    private record Filter(String sql,List<Object> args) {}
+    private Filter filter(LocalDate from,LocalDate to,Long actor,String type,String entity){if(from==null||to==null||from.isAfter(to)||from.getYear()<1||to.getYear()>9998||actor!=null&&actor<1||type.length()>80||entity.length()>80)throw new ApiException(400,"INVALID_INPUT");var args=new ArrayList<Object>();args.add(LocalDateTime.ofInstant(from.atStartOfDay(ZoneId.of("America/Costa_Rica")).toInstant(),ZoneOffset.UTC));args.add(LocalDateTime.ofInstant(to.plusDays(1).atStartOfDay(ZoneId.of("America/Costa_Rica")).toInstant(),ZoneOffset.UTC));String sql=" WHERE occurredAt>=? AND occurredAt<?";if(actor!=null){sql+=" AND actorId=?";args.add(actor);}if(!type.isEmpty()){sql+=" AND type=?";args.add(type);}if(!entity.isEmpty()){sql+=" AND entity=?";args.add(entity);}return new Filter(sql,args);}
+    @Transactional(readOnly=true,isolation=Isolation.REPEATABLE_READ)
+    public Map<String,Object> list(LocalDate from,LocalDate to,Long actor,String type,String entity,int page,int size){page(page,size);var f=filter(from,to,actor,type,entity);String groups=ROWS+", grouped AS (SELECT groupKey,MAX(occurredAt) occurredAt,MAX(actorId) actorId,COUNT_BIG(*) entryCount,COALESCE(MAX(CASE WHEN source='EVENT' THEN type END),MAX(type)) type FROM entries"+f.sql()+" GROUP BY groupKey) ";var count=jdbc.queryForObject(groups+"SELECT COUNT_BIG(*) FROM grouped",Long.class,f.args().toArray());var args=new ArrayList<>(f.args());args.add((long)page*size);args.add(size);var items=jdbc.queryForList(groups+"SELECT g.*,u.name actorName FROM grouped g LEFT JOIN dbo.AppUser u ON u.id=g.actorId ORDER BY occurredAt DESC,groupKey DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY",args.toArray()).stream().map(this::json).toList();return Map.of("items",items,"page",page,"size",size,"total",count);}
+    @Transactional(readOnly=true,isolation=Isolation.REPEATABLE_READ)
+    public Map<String,Object> entries(String group,int page,int size){page(page,size);if(!group.matches("(?i)([AE]-[1-9][0-9]*|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"))throw new ApiException(400,"INVALID_INPUT");long count=jdbc.queryForObject(ROWS+"SELECT COUNT_BIG(*) FROM entries WHERE groupKey=?",Long.class,group);if(count==0)throw new ApiException(404,"NOT_FOUND");var items=jdbc.queryForList(ROWS+"SELECT e.*,u.name actorName FROM entries e LEFT JOIN dbo.AppUser u ON u.id=e.actorId WHERE groupKey=? ORDER BY occurredAt,id OFFSET ? ROWS FETCH NEXT ? ROWS ONLY",group,(long)page*size,size).stream().map(this::json).toList();return Map.of("items",items,"page",page,"size",size,"total",count);}
+    @Transactional(readOnly=true)
+    public Map<String,Object> options(){return Map.of("actors",jdbc.queryForList("SELECT id,name FROM dbo.AppUser WHERE EXISTS(SELECT 1 FROM dbo.AuditLog WHERE actorId=AppUser.id) OR EXISTS(SELECT 1 FROM dbo.ActivityEvent WHERE actorId=AppUser.id) ORDER BY name,id").stream().map(r->Map.of("id",r.get("id").toString(),"name",r.get("name"))).toList(),"types",jdbc.queryForList("SELECT operation value FROM dbo.AuditLog UNION SELECT eventType FROM dbo.ActivityEvent ORDER BY value",String.class),"entities",jdbc.queryForList("SELECT entity FROM dbo.AuditLog UNION SELECT entity FROM dbo.ActivityEvent WHERE entity IS NOT NULL ORDER BY entity",String.class));}
+}

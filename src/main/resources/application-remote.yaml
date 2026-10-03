@@ -1,0 +1,9 @@
+# HTTPS hosting defaults. For local HTTP testing only, set SERVER_SERVLET_SESSION_COOKIE_SECURE=false.
+server:
+  address: ${SERVER_ADDRESS:0.0.0.0}
+  port: ${PORT:8080}
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 0
