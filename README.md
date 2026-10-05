@@ -24,3 +24,7 @@ El sistema se compone de tres proyectos complementarios:
 - customer-web: portal público de información y reservas.
 - admin-web: panel de gestión para el personal y los administradores.
 - business-api: servicios centrales que conectan ambas experiencias.
+
+## Publicación
+
+Consulta [la guía paso a paso para Render](docs/render-deployment.md) para desplegar la API y conectar los dominios del cliente y del administrador.

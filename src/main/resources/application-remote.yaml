@@ -1,5 +1,6 @@
 # HTTPS hosting defaults. For local HTTP testing only, set SERVER_SERVLET_SESSION_COOKIE_SECURE=false.
 server:
+  forward-headers-strategy: framework
   address: ${SERVER_ADDRESS:0.0.0.0}
   port: ${PORT:8080}
 spring:
@@ -7,3 +8,6 @@ spring:
     hikari:
       maximum-pool-size: 5
       minimum-idle: 0
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://reserva.cliente.atenix.net,https://reserva.admin.atenix.net}

@@ -13,6 +13,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
+import org.springframework.web.cors.CorsConfigurationSource;
 import tools.jackson.databind.ObjectMapper;
 @Configuration
 public class SecurityConfiguration {
@@ -25,8 +26,10 @@ public class SecurityConfiguration {
         return new ProviderManager(provider);
     }
     @Bean SecurityFilterChain securityFilterChain(HttpSecurity http, HttpSessionSecurityContextRepository contexts,
-        HttpSessionCsrfTokenRepository csrf, Clock clock, UserRepository users, ObjectMapper mapper) throws Exception {
-        return http.securityContext(context -> context.securityContextRepository(contexts))
+        HttpSessionCsrfTokenRepository csrf, Clock clock, UserRepository users, ObjectMapper mapper,
+        CorsConfigurationSource corsConfigurationSource) throws Exception {
+        return http.cors(cors -> cors.configurationSource(corsConfigurationSource))
+            .securityContext(context -> context.securityContextRepository(contexts))
             .csrf(config -> config.csrfTokenRepository(csrf).ignoringRequestMatchers("/api/v1/public/reservation-quotes", "/api/v1/public/reservations")).logout(config -> config.disable())
             .authorizeHttpRequests(requests -> requests
                 .requestMatchers("/api/v1/admissions/*/corrections", "/api/v1/admissions/*/correction-quotes", "/api/v1/cash-sessions").hasRole("ADMIN")
