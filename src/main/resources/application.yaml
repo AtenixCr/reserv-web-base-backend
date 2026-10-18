@@ -1,4 +1,8 @@
 spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
   application:
     name: business-api
   jackson:
@@ -54,3 +58,8 @@ server:
         same-site: lax
 notifications:
   enabled: ${NOTIFICATIONS_ENABLED:false}
+
+app:
+  media:
+    directory: ${MEDIA_DIRECTORY:./uploads}
+    public-base-url: ${MEDIA_PUBLIC_BASE_URL:http://localhost:8080}
